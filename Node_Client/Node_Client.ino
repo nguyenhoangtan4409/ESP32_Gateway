@@ -53,7 +53,7 @@ void reconnectWiFi() {
   }
   Serial.println("Reconnected to WiFi.");
 }
-bool isAutoMode = 0;
+bool isBlinkMode = 0;
 void loop() {
 
   if (WiFi.status() != WL_CONNECTED)
@@ -69,7 +69,8 @@ void loop() {
     {
           temp = readTemperaturee(); // đọc nhiệt độ từ cảm biến
           Serial.printf("Temperature: %0.2f *C\n",temp);
-          if(isAutoMode)
+
+          if(isBlinkMode)
           {
             ledcAttachPin(led, 0);
             ledcWrite(0, dutyCycleToH_pulsewidth(duty));
@@ -84,11 +85,11 @@ void loop() {
           if (client.available()){ // nếu dữ có sẵn sàng để đọc chưa
               String response = client.readStringUntil('#'); // đọc yêu cầu từ Gateway
               
-              if (response == "ON") {ledstatus = HIGH; isAutoMode = 0;}
-              else if (response == "OFF") {ledstatus = LOW; isAutoMode = 0;}
-              else if (response == "0P1") {duty = 0; isAutoMode = 1;}
-              else if (response == "25P1") {duty = 25; isAutoMode = 1;}
-              else if (response == "75P1") {duty = 75; isAutoMode = 1;}
+              if (response == "ON") {ledstatus = HIGH; isBlinkMode = 0;}
+              else if (response == "OFF") {ledstatus = LOW; isBlinkMode = 0;}
+              else if (response == "0P1") {duty = 0; isBlinkMode = 1;}
+              else if (response == "25P1") {duty = 25; isBlinkMode = 1;}
+              else if (response == "75P1") {duty = 75; isBlinkMode = 1;}
               else if (response == "temp") client.println(String(temp));
 
               Serial.printf("Say from Gateway: %s\n", response);

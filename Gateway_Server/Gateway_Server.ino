@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 
-#define A 30   // nhiệt độ
+#define A 33   // nhiệt độ
 #define B 37 // nhiệt độ
 
 // SSID & Password của ESP32 ở chế độ Access Point để làm Gateway
@@ -39,7 +39,7 @@ void setup() {
   delay(100);
   //Các phương thức để xử request từ Web - đường dẫn 
   Server_web.on("/", handle_OnConnect);
-  Server_web.on("/auto", handle_auto);
+  Server_web.on("/blink", handle_blink);
   Server_web.on("/manual", handle_manual);
   Server_web.on("/update", handle_update);
   Server_web.onNotFound(handle_NotFound);
@@ -54,7 +54,7 @@ void setup() {
   }
 }
 
-bool isAutoMode = 0;
+bool isBlinkMode = 0;
 void loop() {
   // Xử lý các request
   Server_web.handleClient();
@@ -67,10 +67,10 @@ void loop() {
         Serial.println(nodes[i].remoteIP());
 
         if (update == 1) nodes[i].print("temp#");
-        else if(isAutoMode)
+        else if(isBlinkMode)
         {
-          if (A < Temperature && Temperature<= B) nodes[i].print("25P1#"); // 35 < Temperature <= 37
-          else if (Temperature > B) nodes[i].print("75P1#");
+          if (33 < Temperature && Temperature<= 37) nodes[i].print("25P1#"); // 35 < Temperature <= 37
+          else if (Temperature > 37) nodes[i].print("75P1#");
           else nodes[i].print("0P1#");
         }
         else{
@@ -118,15 +118,15 @@ void readTemp(){
 /* Các hàm xử lý cho từ request cụ thể*/
 void handle_OnConnect() {
   LED1status = LOW;
-  isAutoMode = 0;
+  isBlinkMode = 0;
   Server_web.send(200, "text/html", SendHTML(LED1status)); 
 }
-void handle_auto(){
-  isAutoMode = 1;
+void handle_blink(){
+  isBlinkMode = 1;
   Server_web.send(200, "text/html", SendHTML(LED1status)); 
 }
 void handle_manual(){
-  isAutoMode = 0;
+  isBlinkMode = 0;
   LED1status = !LED1status;
   Serial.printf("GPIO2 Status: %d\n", LED1status);
   Server_web.send(200, "text/html", SendHTML(LED1status)); 
@@ -145,11 +145,11 @@ String SendHTML(uint8_t led1stat) { // đoạn code HTML đơn giản để hi�
   ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
   ptr += "<title>LED Control</title>\n";
   ptr += "<meta http-equiv=\"refresh\" content=\"30\">\n";
-  ptr += "<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}\n";
-  ptr += "body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}\n";
+  ptr += "<style>html { font-family: Helvetica; display: inline-block; margin: 0px blink; text-align: center;}\n";
+  ptr += "body{margin-top: 50px;} h1 {color: #444444;margin: 50px blink 30px;} h3 {color: #444444;margin-bottom: 50px;}\n";
   ptr += ".button {display: inline-block;width: 80px;background-color: #3498db;border: none;color: white;padding: 13px 30px;text-decoration: none;font-size: 25px;margin: 0px 10px 35px;cursor: pointer;border-radius: 4px;}\n";
-  ptr += ".button-auto {background-color: #f1c40f;width: 120px;}\n";
-  ptr += ".button-auto:active {background-color: #f39c12;}\n";
+  ptr += ".button-blink {background-color: #f1c40f;width: 120px;}\n";
+  ptr += ".button-blink:active {background-color: #f39c12;}\n";
   ptr += ".button-manual {background-color: #f1c40f;width: 120px;}\n";
   ptr += ".button-manual:active {background-color: #f39c12;}\n";
   ptr += ".button-update {background-color: #f39c12; width: 120px;}\n";
@@ -160,15 +160,15 @@ String SendHTML(uint8_t led1stat) { // đoạn code HTML đơn giản để hi�
   ptr += "<body>\n";
   ptr += "<h1>ESP32 Web Server</h1>\n";
   ptr += "<p>";
-  if (isAutoMode) {
-    ptr += "<span style=\"font-size: 30px;color: #3498db;\">LedMode: Auto</span>";
+  if (isBlinkMode) {
+    ptr += "<span style=\"font-size: 30px;color: #3498db;\">LedMode: blink</span>";
   } else {
     ptr += "<span style=\"font-size: 30px;color: #f1c40f;\">LedMode: Manual (";
     ptr += String(led1stat ? "Led-On" : "Led-Off") + ")</span>";
   }
   ptr += "</p>\n";
   ptr += "<div>";
-  ptr += "<a class=\"button button-auto\" style=\"display: inline-block;\" href=\"/auto\">Auto</a>";
+  ptr += "<a class=\"button button-blink\" style=\"display: inline-block;\" href=\"/blink\">blink</a>";
   ptr += "<a class=\"button button-manual\" style=\"display: inline-block; margin-left: 10px;\" href=\"/manual\">Manual</a>\n";
   ptr += "</div>\n";
   ptr += "<p><span style=\"font-size: 30px; font-weight: bold;\">Temperature: " + message + "&#8451;</span></p>\n";
