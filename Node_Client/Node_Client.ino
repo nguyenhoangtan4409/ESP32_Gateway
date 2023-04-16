@@ -3,17 +3,22 @@
 #include <WiFiAP.h>
 #include <driver/ledc.h>
 #include "my_BMP280.h"
-const char* ssid     = "ESP_Deviot";
+
+const char* ssid     = "ESPGateway";
 const char* password = "123456789";
 
+// thông tin để kết nối lên gateway
 const char* serverAddress = "192.168.1.1";
 const int serverPort = 80;
-uint8_t led = 2;
+
+uint8_t led = 2; // cấu hình chân GPIO LED 2
 bool ledstatus = LOW;
-int duty = 0;
+int duty = 0; // biến lưu trữ giá trị duty cycle để băm xung
+float temp = 0; // biến lưu nhiệt độ đọc từ cảm biến
 void setup() {
   Serial.begin(115200);
   pinMode(2, OUTPUT);
+  //kết nối Wifi của Gateway
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -35,7 +40,6 @@ int dutyCycleToH_pulsewidth(int percent){
   int duty = map(percent, 0, 100, 0, 65535);
   return duty;
 }
-float temp = 20;
 
 void reconnectWiFi() {
   Serial.println("Attempting to reconnect to WiFi...");
@@ -58,11 +62,13 @@ void loop() {
   }
 
   WiFiClient client;
-  if (client.connect(serverAddress, serverPort))
+  if (client.connect(serverAddress, serverPort)) // nếu kết nối thành công
   {
     Serial.println("Connected to server");
-    while(client.connected())
+    while(client.connected()) // vòng lặp nếu vẫn còn kết nối với Gateway
     {
+          temp = readTemperaturee(); // đọc nhiệt độ từ cảm biến
+          Serial.printf("Temperature: %0.2f *C\n",temp);
           if(isAutoMode)
           {
             ledcAttachPin(led, 0);
@@ -74,11 +80,10 @@ void loop() {
             if (ledstatus) digitalWrite(led, HIGH);
             else   digitalWrite(led, LOW);
           }
-          //temp = readTemperaturee(); // đọc giá trị gửi đến cho đến khi gặp kí tự xuống dòng \n
-          temp += 0.2;
-          if(temp > 40) temp = 20;
-          // if (client.available()){
-              String response = client.readStringUntil('#');
+        
+          if (client.available()){ // nếu dữ có sẵn sàng để đọc chưa
+              String response = client.readStringUntil('#'); // đọc yêu cầu từ Gateway
+              
               if (response == "ON") {ledstatus = HIGH; isAutoMode = 0;}
               else if (response == "OFF") {ledstatus = LOW; isAutoMode = 0;}
               else if (response == "0P1") {duty = 0; isAutoMode = 1;}
@@ -86,14 +91,14 @@ void loop() {
               else if (response == "75P1") {duty = 75; isAutoMode = 1;}
               else if (response == "temp") client.println(String(temp));
 
-              Serial.printf("Temperature: %0.2f *C\n",temp);
               Serial.printf("Say from Gateway: %s\n", response);
-          // }
+          }
+          
     }
   }
   else 
   {
-    client.stop();
+    client.stop(); // ngưng kết nối
     delay (1000);
   }
 

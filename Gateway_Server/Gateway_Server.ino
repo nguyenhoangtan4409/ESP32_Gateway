@@ -8,22 +8,27 @@
 #define A 30   // nhiệt độ
 #define B 37 // nhiệt độ
 
-/* điền SSID & Password của ESP32*/
-const char* ssid = "ESP_Deviot"; 
+// SSID & Password của ESP32 ở chế độ Access Point để làm Gateway
+const char* ssid = "ESPGateway"; 
 const char* password = "123456789";
-/* Gắn cho ESP32 IP tĩnh */
+// Gắn cho ESP32 IP tĩnh
 IPAddress local_ip(192,168,1,1);
 IPAddress gateway(192,168,1,1);
 IPAddress subnet(255,255,255,0);
-
+// Port cho Gateway để trao đổi dữ liệu với Node là 80
 WiFiServer server(80);
+// Port cho webserver là 8000
 WebServer Server_web(8000);
 
-const int maxClients = 1;
-WiFiClient clients[maxClients]; // Mảng các kết nối clients
-bool clientAvailable[maxClients]; // Mảng đánh dấu kết nối clients có sẵn
+const int maxNode = 1; // Số node tối đa
+WiFiClient nodes[maxNode]; // Mảng các kết nối nodes
+bool nodeAvailable[maxNode]; // Mảng đánh dấu kết nối nodes có sẵn
 
 bool LED1status = LOW;
+
+bool update = 0;
+String message = "";
+float Temperature = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -32,57 +37,62 @@ void setup() {
   Serial.println(WiFi.softAPIP());
 
   delay(100);
+  //Các phương thức để xử request từ Web - đường dẫn 
   Server_web.on("/", handle_OnConnect);
   Server_web.on("/auto", handle_auto);
   Server_web.on("/manual", handle_manual);
   Server_web.on("/update", handle_update);
   Server_web.onNotFound(handle_NotFound);
+  // Khởi động webserver
   Server_web.begin();
+  //Khởi động server gateway
   server.begin();
+
   Serial.println("HTTP server started");
-  for (int i = 0; i < maxClients; i++) {
-    clientAvailable[i] = false; // Khởi tạo mảng clientAvailable
+  for (int i = 0; i < maxNode; i++) {
+    nodeAvailable[i] = false; // Khởi tạo mảng nodeAvailable
   }
 }
-int up = 0;
-String message = "";
-float Temperature = 0;
 
 bool isAutoMode = 0;
 void loop() {
+  // Xử lý các request
   Server_web.handleClient();
 
-  for (int i = 0; i < maxClients; i++) {
-    if (clients[i] && clients[i].connected()) 
+  for (int i = 0; i < maxNode; i++) {
+    if (nodes[i] && nodes[i].connected()) 
     {
+        // Các IP các node đã kết nối
         Serial.print("Client IP address: ");
-        Serial.println(clients[i].remoteIP());
-        if (up == 1) clients[i].print("temp#");
-        else if(isAutoMode){
-          if (A < Temperature && Temperature<= B) clients[i].print("25P1#"); // 35 < Temperature <= 37
-          else if (Temperature > B) clients[i].print("75P1#");
-          else clients[i].print("0P1#");
+        Serial.println(nodes[i].remoteIP());
+
+        if (update == 1) nodes[i].print("temp#");
+        else if(isAutoMode)
+        {
+          if (A < Temperature && Temperature<= B) nodes[i].print("25P1#"); // 35 < Temperature <= 37
+          else if (Temperature > B) nodes[i].print("75P1#");
+          else nodes[i].print("0P1#");
         }
         else{
-          if(LED1status) clients[i].print("ON#");
-          else clients[i].print("OFF#");
+          if(LED1status) nodes[i].print("ON#");
+          else nodes[i].print("OFF#");
         }
     } 
    else
     {
-     clients[i].stop();
-     clientAvailable[i] = false; // Đánh dấu client không sẵn sàng
+     nodes[i].stop();
+     nodeAvailable[i] = false; // Đánh dấu client không sẵn sàng
      Serial.printf("Client %d disconnected\n", i);
     }
   }
   WiFiClient newClient = server.available();
   if (newClient) {
-    for (int i = 0; i < maxClients; i++) 
+    for (int i = 0; i < maxNode; i++) 
     {
-      if (!clientAvailable[i]) // Tìm kiếm vị trí trống để lưu trữ kết nối mới
+      if (!nodeAvailable[i]) // Tìm kiếm vị trí trống để lưu trữ kết nối mới
       { 
-        clients[i] = newClient;
-        clientAvailable[i] = true; // Đánh dấu client đã sẵn sàng
+        nodes[i] = newClient;
+        nodeAvailable[i] = true; // Đánh dấu client đã sẵn sàng
         Serial.print("New client connected to client ");
         Serial.println(i);
         break;
@@ -92,22 +102,20 @@ void loop() {
   delay(500);
 }
 void readTemp(){
-  for (int i = 0; i < maxClients; i++) 
+  for (int i = 0; i < maxNode; i++) 
   {
-    if (clients[i] && clients[i].connected()) 
+    if (nodes[i] && nodes[i].connected()) 
     {
-       clients[i].print("temp#");
-        if (up == 1 /*|| clients[i].available()*/) 
-        { // nếu có dữ liệu nhận từ client thì...
-          message = clients[i].readStringUntil('\n');
-          Server_web.send(200, "text/html", SendHTML(LED1status));
-          Temperature = atof(message.c_str());
+       nodes[i].print("temp#");
+        if (update == 1 && nodes[i].available()) // nếu dữ liệu sẵn sàng từ node
+        { 
+          message = nodes[i].readStringUntil('\n');
+          Temperature = atof(message.c_str()); // chuyển đổi từ String --> float
         }
-
-
     }
   }
 }
+/* Các hàm xử lý cho từ request cụ thể*/
 void handle_OnConnect() {
   LED1status = LOW;
   isAutoMode = 0;
@@ -124,15 +132,15 @@ void handle_manual(){
   Server_web.send(200, "text/html", SendHTML(LED1status)); 
 }
 void handle_update(){
-  up++;
+  update = 1;
   readTemp();
   Server_web.send(200, "text/html", SendHTML(LED1status)); 
-  up = 0;
+  update = 0;
 }
 void handle_NotFound(){
   Server_web.send(404, "text/plain", "Not found");
 }
-String SendHTML(uint8_t led1stat) {
+String SendHTML(uint8_t led1stat) { // đoạn code HTML đơn giản để hiển thị lên webserver
   String ptr = "<!DOCTYPE html> <html>\n";
   ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
   ptr += "<title>LED Control</title>\n";
