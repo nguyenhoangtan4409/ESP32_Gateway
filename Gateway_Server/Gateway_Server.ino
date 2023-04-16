@@ -2,12 +2,9 @@
 #include <WebServer.h>
 #include <WiFiClient.h>
 #include <WiFiAP.h>
-#include <iostream>
-#include <string>
 
 #define A 33   // nhiệt độ
 #define B 37 // nhiệt độ
-
 // SSID & Password của ESP32 ở chế độ Access Point để làm Gateway
 const char* ssid = "ESPGateway"; 
 const char* password = "123456789";
@@ -26,7 +23,9 @@ bool nodeAvailable[maxNode]; // Mảng đánh dấu kết nối nodes có sẵn
 
 bool LED1status = LOW;
 
+bool isBlinkMode = 0;
 bool update = 0;
+
 String message = "";
 float Temperature = 0;
 
@@ -54,7 +53,6 @@ void setup() {
   }
 }
 
-bool isBlinkMode = 0;
 void loop() {
   // Xử lý các request
   Server_web.handleClient();
@@ -69,8 +67,8 @@ void loop() {
         if (update == 1) nodes[i].print("temp#");
         else if(isBlinkMode)
         {
-          if (33 < Temperature && Temperature<= 37) nodes[i].print("25P1#"); // 35 < Temperature <= 37
-          else if (Temperature > 37) nodes[i].print("75P1#");
+          if (A < Temperature && Temperature<= B) nodes[i].print("25P1#"); // 35 < Temperature <= 37
+          else if (Temperature > B) nodes[i].print("75P1#");
           else nodes[i].print("0P1#");
         }
         else{
